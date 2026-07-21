@@ -111,12 +111,19 @@ optimalclimbing/
 │   ├── core/
 │   │   ├── db.py            ← connection pool; get_conn dependency
 │   │   ├── security.py      ← bcrypt hash/verify, JWT sign/verify, auth dependency
-│   │   └── config.py        ← loads .env; no secrets in source
+│   │   ├── config.py        ← loads .env; no secrets in source
+│   │   └── envelope.py      ← { "data": ... } success-envelope helper
+│   ├── scoring/            ← server-side scoring port (mirrors frontend/src/pipeline/*)
+│   │   ├── cog.py          ← segmental center-of-mass (mirrors cog.ts)
+│   │   ├── smoothing.py    ← one-euro filter + derivatives (mirrors smoothing.ts)
+│   │   └── moves.py        ← static/dynamic classification + metrics (mirrors moves.ts)
 │   ├── models/
 │   │   └── schemas.py       ← Pydantic request/response models
 │   ├── feedback/
 │   │   └── generate.py      ← turns numeric metrics into prose via the Anthropic API
+│   ├── schema.sql          ← DB schema (must match the Database Schema section below)
 │   ├── pyproject.toml       ← project + deps
+│   ├── .env.example        ← committed template
 │   └── .env                 ← never commit this file
 ├── frontend/
 │   ├── src/
@@ -138,8 +145,11 @@ optimalclimbing/
 │   │   ├── services/
 │   │   │   └── api.ts       ← ALL API calls live here. Never call fetch() in a component.
 │   │   ├── store/
-│   │   │   └── auth.ts      ← auth state: current user, login(), logout()
-│   │   └── components/      ← shared UI: ClimbCard, MoveBreakdown, HoldMarker, etc.
+│   │   │   ├── auth.ts      ← auth state: current user, login(), logout()
+│   │   │   └── draft.ts     ← in-memory upload→annotate→analyze hand-off (landmarks, frame)
+│   │   ├── components/
+│   │   │   └── ProtectedLayout.tsx  ← auth gate + app nav (Outlet)
+│   │   └── styles.css      ← global styles (replaces the scaffold App.css/index.css)
 │   ├── index.html
 │   ├── package.json
 │   └── .env                 ← VITE_API_URL only
@@ -155,9 +165,17 @@ optimalclimbing/
 ### Backend
 ```bash
 cd backend
-cp .env.example .env    # then fill in all values
+cp .env.example .env    # then fill in all values (DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY)
 uv sync                 # or: pip install -e .
+psql "$DATABASE_URL" -f schema.sql   # once, on a fresh database (needs PostgreSQL 15 + PostGIS)
 uvicorn main:app --reload --port 8080
+```
+
+Local Postgres via Docker (PostGIS image so `schema.sql` applies verbatim):
+```bash
+docker run -d --name opclimbing-pg -e POSTGRES_PASSWORD=devpass \
+  -e POSTGRES_DB=optimalclimbing -p 5434:5432 postgis/postgis:15-3.4
+# DATABASE_URL=postgresql://postgres:devpass@localhost:5434/optimalclimbing
 ```
 
 ### Frontend
@@ -404,20 +422,34 @@ threshold. Only remaining Phase-1 gap: the feedback layer still needs one live-A
       (written; offline smoke test passes; needs one live-API run with a real ANTHROPIC_API_KEY)
 
 **Phase 2 - Product shell**
-- [ ] FastAPI scaffold; DB pool; config from .env
-- [ ] POST /auth/signup, /auth/login, /auth/logout (httpOnly cookie)
-- [ ] Auth dependency + protected routes
-- [ ] POST /climbs, GET /climbs, GET /climbs/{id}, DELETE /climbs/{id} (ownership → 404)
-- [ ] PUT /climbs/{id}/holds (replace set; reject empty)
-- [ ] POST /climbs/{id}/analyze (validate landmarks; persist analysis + moves; idempotent)
-- [ ] GET /climbs/{id}/analysis
-- [ ] Frontend: api.ts service layer + auth store
-- [ ] Signup / Login screens
-- [ ] Home (past climbs + upload entry)
-- [ ] Upload screen (in-browser pose extraction)
-- [ ] Annotate Holds screen (tap in sequence, undo, clear)
-- [ ] Analysis screen (per-move breakdown prominent; score secondary)
-- [ ] Profile screen (sign out)
+
+Status note (2026-07-21): built on branch phase2-product-shell and verified end-to-end.
+Backend: 34 checks pass (19 curl for auth/climbs/holds + error/ownership cases; 15 via TestClient
+for analyze/analysis against the real DB with feedback stubbed - no live API key). The server-side
+scoring port (backend/scoring/*) reproduces the clip-01 fixture EXACTLY (cross-language consistency
+with the TS pipeline). Frontend: full signup -> upload (in-browser pose) -> annotate -> analyze ->
+analysis -> history -> sign-out flow driven in real Chrome, no console errors; production build OK.
+Only remaining gap (shared with Phase 1): live feedback prose needs a real ANTHROPIC_API_KEY.
+
+Reconciliation note: the `moves` table stores `cog_distance` but not `landing_control`. A dynamic
+move persists `cog_distance = NULL` and carries its landing quality in the prose `note`; the
+`landing_control` metric is computed at analyze time and passed to the feedback layer, not stored.
+
+- [x] FastAPI scaffold; DB pool; config from .env
+- [x] POST /auth/signup, /auth/login, /auth/logout (httpOnly cookie)
+- [x] Auth dependency + protected routes
+- [x] POST /climbs, GET /climbs, GET /climbs/{id}, DELETE /climbs/{id} (ownership → 404)
+- [x] PUT /climbs/{id}/holds (replace set; reject empty)
+- [x] POST /climbs/{id}/analyze (validate landmarks; persist analysis + moves; idempotent)
+      (scoring runs server-side via backend/scoring/*, validated against the clip-01 fixture)
+- [x] GET /climbs/{id}/analysis
+- [x] Frontend: api.ts service layer + auth store
+- [x] Signup / Login screens
+- [x] Home (past climbs + upload entry)
+- [x] Upload screen (in-browser pose extraction)
+- [x] Annotate Holds screen (tap in sequence, undo, clear)
+- [x] Analysis screen (per-move breakdown prominent; score secondary)
+- [x] Profile screen (sign out)
 
 **Phase 3 - Deploy + test**
 - [ ] Backend deployed to Railway

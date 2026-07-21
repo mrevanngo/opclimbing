@@ -1,0 +1,109 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1e222b;
+  --border: #2a2f3a;
+  --text: #e7e9ee;
+  --muted: #9aa3b2;
+  --accent: #4f9dff;
+  --accent-2: #2f6fd0;
+  --good: #35c07f;
+  --warn: #e0a63b;
+  --danger: #e05a5a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent-2); border-color: var(--accent-2); color: white; }
+button.primary:hover:not(:disabled) { background: var(--accent); }
+button.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+
+input {
+  font: inherit;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+input:focus { outline: none; border-color: var(--accent); }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.nav .brand { font-weight: 700; letter-spacing: 0.2px; }
+.nav .spacer { flex: 1; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+.auth-container { max-width: 380px; margin: 8vh auto; padding: 0 20px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+.field { margin-bottom: 14px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.muted { color: var(--muted); }
+.error { color: var(--danger); background: rgba(224, 90, 90, 0.1); border: 1px solid var(--danger); border-radius: 8px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+.spacer-y { height: 16px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 10px; }
+
+.climb-list { display: grid; gap: 12px; }
+.climb-card { display: flex; align-items: center; gap: 12px; }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.badge.analyzed { color: var(--good); border-color: var(--good); }
+.badge.annotated { color: var(--warn); border-color: var(--warn); }
+
+/* Per-move breakdown - the prominent product surface. */
+.move { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: var(--panel); }
+.move-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.move-type { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 999px; }
+.move-type.static { background: rgba(79,157,255,0.15); color: var(--accent); }
+.move-type.dynamic { background: rgba(224,166,59,0.15); color: var(--warn); }
+.metric { font-size: 13px; color: var(--muted); }
+.note { margin-top: 6px; }
+.lowconf { font-size: 12px; color: var(--warn); }
+
+.annotate-stage { position: relative; display: inline-block; max-width: 100%; }
+.annotate-stage img { display: block; max-width: 100%; border-radius: 10px; border: 1px solid var(--border); cursor: crosshair; }
+.hold-marker {
+  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border: 2px solid var(--accent); border-radius: 50%;
+  background: rgba(79,157,255,0.25); color: white; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
+.progress { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.progress > div { height: 100%; background: var(--accent); transition: width 0.2s; }
