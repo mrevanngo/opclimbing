@@ -1,0 +1,25 @@
+# Environment files - never commit secrets
+.env
+backend/.env
+frontend/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Node (frontend has its own .gitignore; belt and braces)
+node_modules/
+dist/
+
+# Raw climbing clips - never commit (real faces / third-party rights).
+# The pipeline fixtures commit extracted landmark JSON instead (see
+# pipeline/fixtures/README.md and PIPELINE.md - Fixtures).
+*.mp4
+*.mov
+*.MP4
+*.MOV
+
+# Dev-harness copies served from the frontend (verification only, not product).
+frontend/public/clip-01.landmarks.json

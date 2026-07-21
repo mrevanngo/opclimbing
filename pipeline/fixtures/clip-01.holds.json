@@ -1,0 +1,11 @@
+{
+  "note": "Holds annotated by observing the climber's planted-hand (wrist) positions at each grab in clip-01, in ascending tap order. Coordinates are normalized frame coordinates (0..1). This mirrors the V1 user-annotation flow (tap holds in intended sequence); positions were read from high-visibility wrist plateaus for precision. sequence_index 0 is the starting hold.",
+  "holds": [
+    { "sequence_index": 0, "frame_x": 0.633, "frame_y": 0.479 },
+    { "sequence_index": 1, "frame_x": 0.389, "frame_y": 0.402 },
+    { "sequence_index": 2, "frame_x": 0.541, "frame_y": 0.311 },
+    { "sequence_index": 3, "frame_x": 0.435, "frame_y": 0.355 },
+    { "sequence_index": 4, "frame_x": 0.505, "frame_y": 0.275 },
+    { "sequence_index": 5, "frame_x": 0.502, "frame_y": 0.184 }
+  ]
+}

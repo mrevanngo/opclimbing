@@ -1,0 +1,66 @@
+{
+  "source": "clip-01.landmarks.json + clip-01.holds.json -> moves.ts classifyMoves",
+  "params": {
+    "arrivalRadius": 0.05,
+    "dynamicAccelThreshold": 3,
+    "landingWindowSeconds": 0.3,
+    "confidenceThreshold": 0.5
+  },
+  "moves": [
+    {
+      "moveIndex": 0,
+      "targetHoldSequenceIndex": 1,
+      "moveType": "static",
+      "cogDistance": 0.2258,
+      "landingControl": null,
+      "confidence": 0.831,
+      "lowConfidence": false,
+      "startFrame": 0,
+      "endFrame": 77
+    },
+    {
+      "moveIndex": 1,
+      "targetHoldSequenceIndex": 2,
+      "moveType": "static",
+      "cogDistance": 0.2059,
+      "landingControl": null,
+      "confidence": 0.955,
+      "lowConfidence": false,
+      "startFrame": 77,
+      "endFrame": 157
+    },
+    {
+      "moveIndex": 2,
+      "targetHoldSequenceIndex": 3,
+      "moveType": "static",
+      "cogDistance": 0.1873,
+      "landingControl": null,
+      "confidence": 0.906,
+      "lowConfidence": false,
+      "startFrame": 157,
+      "endFrame": 261
+    },
+    {
+      "moveIndex": 3,
+      "targetHoldSequenceIndex": 4,
+      "moveType": "static",
+      "cogDistance": 0.2206,
+      "landingControl": null,
+      "confidence": 0.77,
+      "lowConfidence": false,
+      "startFrame": 261,
+      "endFrame": 390
+    },
+    {
+      "moveIndex": 4,
+      "targetHoldSequenceIndex": 5,
+      "moveType": "dynamic",
+      "cogDistance": null,
+      "landingControl": 0.2159,
+      "confidence": 0.829,
+      "lowConfidence": false,
+      "startFrame": 390,
+      "endFrame": 534
+    }
+  ]
+}
