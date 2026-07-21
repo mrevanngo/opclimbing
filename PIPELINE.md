@@ -161,17 +161,21 @@ per-move breakdown is the product; any overall number is secondary.
 
 ---
 
-## Stage 6 - Feedback prose (`backend/feedback/generate.py`)
+## Stage 6 - Feedback prose (`backend/feedback/`)
 
-Runs server-side. Turns the numeric per-move metrics into short coaching notes.
+Runs server-side. Turns the numeric per-move metrics into short coaching notes through a
+**pluggable provider** (`FEEDBACK_PROVIDER`): `template` (default, deterministic, no LLM),
+`ollama` (local LLM), or `anthropic` (hosted). See `CLAUDE.md` → Feedback Generation.
 
 - Input: the structured metrics only - target hold, cog_distance / landing_control, move_type,
-  confidence, and route aggregates. **Never** raw video, **never** raw landmark arrays.
-- Output: a per-move `note` and an `overall_summary`, grounded strictly in the numbers. The
-  prompt must instruct the model to describe only what the metrics show and not invent detail.
+  confidence, and route aggregates. **Never** raw video, **never** raw landmark arrays. This
+  separation is settled; the provider behind it is not.
+- Output: a per-move `note` and an `overall_summary`, grounded strictly in the numbers. Every
+  provider describes only what the metrics show and does not invent detail; the default `template`
+  provider derives each sentence directly from a number, so it cannot invent anything.
 - Low-confidence moves are described as low-confidence.
-- This is the only place the language model touches the pipeline. Vision produced numbers;
-  language only interprets them.
+- If a provider is an LLM, this is the only place a language model touches the pipeline. Vision
+  produced numbers; the feedback layer only interprets them.
 
 ---
 

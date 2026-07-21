@@ -44,8 +44,12 @@ Each line says what was chosen AND what was rejected, so the temptation is pre-a
   Keeps raw video on the device; only extracted landmarks + hold coordinates are sent on.
 - **Move classification = velocity/acceleration threshold on the CoG trajectory.** NOT a
   trained classifier in V1. A trained model is a later upgrade once labeled examples exist.
-- **Feedback prose = generated from numeric metrics by a separate layer.** The language layer
-  NEVER sees raw video, only computed numbers. Vision produces numbers; language interprets.
+- **Feedback prose = generated from numeric metrics by a separate, PLUGGABLE layer.** The
+  generation layer NEVER sees raw video, only computed numbers - that separation is the settled,
+  non-negotiable part. The generator itself is swappable via `FEEDBACK_PROVIDER`: the DEFAULT is a
+  deterministic template (no LLM, no key, cannot hallucinate); a local LLM (Ollama) and the
+  Anthropic API are optional drop-in providers. NOT hardwired to any one LLM. (Changed 2026-07-21
+  from Anthropic-only, at the owner's direction, to avoid a required API key.)
 - **Depth axis = not scored in V1.** 2D pose cannot measure hips-off-wall reliably. The app
   says so rather than shipping a confident wrong number.
 
@@ -80,7 +84,7 @@ without asking (`AGENTS.md` guardrails). The "why" here is authoritative.
 | Backend          | Python 3.12+, FastAPI, uvicorn                          |
 | DB access        | SQLAlchemy Core (not the ORM) or raw SQL via psycopg    |
 | Database         | PostgreSQL 15 + PostGIS extension                       |
-| Feedback layer   | Anthropic API call over structured metrics (no video)  |
+| Feedback layer   | Pluggable provider over structured metrics: template (default), Ollama, or Anthropic |
 | Auth             | Custom session + JWT, bcrypt password hashing           |
 | Hosting          | Backend on Railway; static frontend on Railway/CDN      |
 
@@ -119,8 +123,13 @@ optimalclimbing/
 │   │   └── moves.py        ← static/dynamic classification + metrics (mirrors moves.ts)
 │   ├── models/
 │   │   └── schemas.py       ← Pydantic request/response models
-│   ├── feedback/
-│   │   └── generate.py      ← turns numeric metrics into prose via the Anthropic API
+│   ├── feedback/           ← metrics → prose; pluggable provider (metrics only, never video)
+│   │   ├── base.py         ← MoveMetrics/FeedbackResult models + FeedbackProvider protocol
+│   │   ├── generate.py     ← generate_feedback() + resolve_provider() dispatcher
+│   │   ├── template.py     ← deterministic template provider (DEFAULT; no LLM)
+│   │   ├── ollama_provider.py    ← local-LLM provider (Ollama)
+│   │   ├── anthropic_provider.py ← hosted-LLM provider (optional)
+│   │   └── llm_prompt.py   ← shared system prompt + JSON schema for the LLM providers
 │   ├── schema.sql          ← DB schema (must match the Database Schema section below)
 │   ├── pyproject.toml       ← project + deps
 │   ├── .env.example        ← committed template
@@ -193,9 +202,14 @@ npm run dev             # Vite dev server, typically :5173
 ```
 DATABASE_URL=postgresql://postgres:[password]@[host]:5432/postgres
 JWT_SECRET=minimum-32-character-secret-key-here
-ANTHROPIC_API_KEY=sk-ant-...
 PORT=8080
+FEEDBACK_PROVIDER=template          # template (default) | ollama | anthropic
+OLLAMA_URL=http://localhost:11434   # only for FEEDBACK_PROVIDER=ollama
+OLLAMA_MODEL=qwen2.5:7b             # only for FEEDBACK_PROVIDER=ollama
+ANTHROPIC_API_KEY=                  # only for FEEDBACK_PROVIDER=anthropic
 ```
+Only `DATABASE_URL` and `JWT_SECRET` are required. `ANTHROPIC_API_KEY` is needed ONLY when
+`FEEDBACK_PROVIDER=anthropic`; the default `template` provider needs no key or LLM at all.
 
 Keep a committed `backend/.env.example` with the same keys and placeholder values so a fresh
 clone knows what to fill in. The real `.env` is never committed.
@@ -328,17 +342,29 @@ Error messages are human-readable and safe. Never return a stack trace to the cl
 
 ## Feedback Generation
 
-`backend/feedback/generate.py` turns the numeric per-move metrics into coaching prose.
+`backend/feedback/` turns the numeric per-move metrics into coaching prose through a **pluggable
+provider** (`FEEDBACK_PROVIDER`): `template` (default), `ollama` (local LLM), or `anthropic`.
+`generate_feedback(moves, provider)` (in `generate.py`) is the entry point; `resolve_provider(settings)`
+builds the configured one. All providers obey the same contract:
 
-- Input: the structured `moves` metrics (target hold, cog_distance, move_type, confidence)
-  plus route-level aggregates. NEVER the raw video, and NEVER raw landmark arrays - only the
-  computed summary numbers.
-- Output: a short per-move `note` and an `overall_summary`, grounded strictly in the numbers
-  passed in. The prompt instructs the model to describe only what the metrics show and to
-  avoid inventing detail the numbers do not support.
-- Low-confidence moves (below the threshold in `PIPELINE.md`) are described as low-confidence,
-  not given a confident correction.
-- This call is the only place the Anthropic API is used in the product. Keep it isolated here.
+- Input: the structured `moves` metrics (target hold, cog_distance, move_type, landing_control,
+  confidence) plus route-level aggregates. NEVER the raw video, and NEVER raw landmark arrays -
+  only the computed summary numbers. This separation is a Settled Decision.
+- Output: a short per-move `note` and an `overall_summary`, grounded strictly in the numbers.
+  `generate_feedback` enforces exactly one note per move.
+- Low-confidence moves are described as low-confidence, not given a confident correction.
+- Dynamic moves are judged on landing control, never penalized for mid-move CoM distance.
+
+Providers:
+- **`template`** (default) - `template.py`. Deterministic prose built directly from the numbers
+  (distance/landing bands + advice). No LLM, no key, no network; cannot hallucinate. This is what
+  runs unless configured otherwise.
+- **`ollama`** - `ollama_provider.py`. A local LLM via Ollama (free, private, no key). Set
+  `FEEDBACK_PROVIDER=ollama`; needs Ollama running and `OLLAMA_MODEL` pulled.
+- **`anthropic`** - `anthropic_provider.py`. The hosted Anthropic API (optional). Set
+  `FEEDBACK_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. The only place the Anthropic API is used.
+
+The LLM providers share one system prompt + JSON schema (`llm_prompt.py`).
 
 ---
 
@@ -402,7 +428,8 @@ in a real browser (system Chrome via Playwright, dev harness in `frontend/src/Ap
 detection, mean CoM confidence 0.850, and browser landmarks match the committed fixture to mean
 |Δx|,|Δy| = 0.004,0.003; the skeleton + CoM overlay is visually correct. The one genuine dynamic
 move (a foot-cut top-out) was confirmed against the frames and cleanly separated by the acceleration
-threshold. Only remaining Phase-1 gap: the feedback layer still needs one live-API run.
+threshold. The feedback layer is now provider-pluggable with a deterministic `template` default
+(verified live on clip-01), so Phase 1 no longer depends on any API key.
 
 - [x] `pipeline/fixtures/` created; at least one real climbing clip added (see `PIPELINE.md`)
       (clip-01 processed; committed as landmark JSON, raw mp4 gitignored - real face / third-party)
@@ -418,8 +445,11 @@ threshold. Only remaining Phase-1 gap: the feedback layer still needs one live-A
 - [x] End-to-end: a real clip + annotated holds produces sensible per-move numbers
 - [x] Regression fixtures saved for pose, cog, and moves stages
       (clip-01.landmarks.json is the pose fixture; expected/cog.json, expected/moves.json)
-- [ ] `feedback/generate.py` - numbers → prose, grounded, low-confidence handled
-      (written; offline smoke test passes; needs one live-API run with a real ANTHROPIC_API_KEY)
+- [x] feedback layer - numbers → prose, grounded, low-confidence handled
+      (pluggable provider; DEFAULT `template` is deterministic - verified live on the clip-01
+      metrics: grounded per-move notes, dynamic judged on landing, low-confidence handled, all
+      distance/landing bands exercised. Optional ollama/anthropic providers built. No API key
+      needed anymore - see FEEDBACK_PROVIDER.)
 
 **Phase 2 - Product shell**
 
@@ -429,7 +459,8 @@ for analyze/analysis against the real DB with feedback stubbed - no live API key
 scoring port (backend/scoring/*) reproduces the clip-01 fixture EXACTLY (cross-language consistency
 with the TS pipeline). Frontend: full signup -> upload (in-browser pose) -> annotate -> analyze ->
 analysis -> history -> sign-out flow driven in real Chrome, no console errors; production build OK.
-Only remaining gap (shared with Phase 1): live feedback prose needs a real ANTHROPIC_API_KEY.
+Feedback prose is generated by the deterministic `template` provider (default; no API key), with
+optional local-LLM (Ollama) and Anthropic providers behind `FEEDBACK_PROVIDER`.
 
 Reconciliation note: the `moves` table stores `cog_distance` but not `landing_control`. A dynamic
 move persists `cog_distance = NULL` and carries its landing quality in the prose `note`; the

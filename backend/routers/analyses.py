@@ -20,7 +20,6 @@ import logging
 from typing import Any
 from uuid import UUID
 
-import anthropic
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -28,7 +27,8 @@ from core.config import get_settings
 from core.db import get_conn
 from core.envelope import ok
 from core.security import CurrentUser, get_current_user
-from feedback.generate import MoveMetrics, generate_feedback
+from feedback.base import FeedbackProvider
+from feedback.generate import MoveMetrics, generate_feedback, resolve_provider
 from models.schemas import AnalysisResponse, AnalyzeRequest, MoveResponse
 from routers.climbs import _owned_climb_or_404
 from scoring.cog import Landmark, compute_cog_trajectory
@@ -40,10 +40,10 @@ logger = logging.getLogger("optimalclimbing")
 router = APIRouter(prefix="/climbs", tags=["analyses"])
 
 
-def get_feedback_client() -> anthropic.Anthropic:
-    """The Anthropic client for the feedback layer. A dependency so tests can
-    override it with a stub (the only external call in the product)."""
-    return anthropic.Anthropic(api_key=get_settings().anthropic_api_key)
+def get_feedback_provider() -> FeedbackProvider:
+    """The configured feedback provider (template by default; ollama/anthropic
+    optional). A dependency so tests can override it if needed."""
+    return resolve_provider(get_settings())
 
 
 def _load_holds(conn: psycopg.Connection[dict[str, Any]], climb_id: UUID) -> list[Hold]:
@@ -69,7 +69,7 @@ def analyze(
     body: AnalyzeRequest,
     user: CurrentUser = Depends(get_current_user),
     conn: psycopg.Connection[dict[str, Any]] = Depends(get_conn),
-    feedback_client: anthropic.Anthropic = Depends(get_feedback_client),
+    feedback_provider: FeedbackProvider = Depends(get_feedback_provider),
 ) -> dict[str, Any]:
     _owned_climb_or_404(conn, climb_id, user.id)
     holds = _load_holds(conn, climb_id)
@@ -101,7 +101,7 @@ def analyze(
         )
         for m in moves
     ]
-    feedback = generate_feedback(metrics, client=feedback_client)
+    feedback = generate_feedback(metrics, feedback_provider)
     notes = {n.move_index: n.note for n in feedback.notes}
 
     # --- Persist (idempotent: replace any prior analysis for this climb) ---
