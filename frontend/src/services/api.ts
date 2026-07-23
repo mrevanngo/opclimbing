@@ -13,11 +13,63 @@ export interface User {
   created_at: string; // ISO 8601 UTC
 }
 
+export type Angle = 'slab' | 'vertical' | 'overhang' | 'roof';
+export type Outcome = 'flash' | 'send' | 'attempt';
+export type HoldType = 'crimp' | 'jug' | 'sloper' | 'pinch' | 'pocket';
+
+export const ANGLES: Angle[] = ['slab', 'vertical', 'overhang', 'roof'];
+export const OUTCOMES: Outcome[] = ['flash', 'send', 'attempt'];
+export const HOLD_TYPES: HoldType[] = ['crimp', 'jug', 'sloper', 'pinch', 'pocket'];
+
+/** A climb is one logbook entry; video analysis is optional extra data on it. */
 export interface Climb {
   id: string;
   status: 'draft' | 'annotated' | 'analyzed';
   video_ref: string | null;
   created_at: string;
+  grade: number | null;
+  angle: Angle | null;
+  outcome: Outcome | null;
+  attempts: number;
+  beta_notes: string | null;
+  climbed_at: string | null;
+  hold_types: HoldType[];
+}
+
+/** Logbook fields for creating or patching a climb (all optional). */
+export interface ClimbLog {
+  grade?: number | null;
+  angle?: Angle | null;
+  outcome?: Outcome | null;
+  attempts?: number | null;
+  beta_notes?: string | null;
+  climbed_at?: string | null;
+  hold_types?: HoldType[];
+}
+
+export interface ProgressionPoint {
+  month: string;
+  sends: number;
+  max_grade: number;
+  median_grade: number;
+  running_best: number;
+}
+
+export interface HoldTypeStat {
+  hold_type: HoldType;
+  total: number;
+  sends: number;
+  send_rate: number;
+}
+
+export interface AngleStat {
+  angle: Angle;
+  logged: number;
+  sends: number;
+  send_rate: number;
+  best_grade: number | null;
+  grade_per_month: number | null;
+  trend: 'improving' | 'plateau' | 'declining' | 'insufficient_data';
 }
 
 export interface ApiHold {
@@ -101,9 +153,14 @@ export function logout(): Promise<void> {
   return request('/auth/logout', { method: 'POST' });
 }
 
-// --- Climbs ---
-export function createClimb(): Promise<{ climb: Climb }> {
-  return request('/climbs', { method: 'POST' });
+// --- Climbs / logbook ---
+/** Create a climb. With no log fields this is a bare draft for the video flow. */
+export function createClimb(log?: ClimbLog): Promise<{ climb: Climb }> {
+  return request('/climbs', { method: 'POST', body: JSON.stringify(log ?? {}) });
+}
+/** Partial update of a climb's logbook fields. */
+export function patchClimb(id: string, log: ClimbLog): Promise<{ climb: Climb }> {
+  return request(`/climbs/${id}`, { method: 'PATCH', body: JSON.stringify(log) });
 }
 export function listClimbs(): Promise<{ climbs: Climb[] }> {
   return request('/climbs');
@@ -136,6 +193,17 @@ export function analyze(
 }
 export function getAnalysis(id: string): Promise<{ analysis: Analysis; moves: Move[] }> {
   return request(`/climbs/${id}/analysis`);
+}
+
+// --- Logbook analytics ---
+export function getProgression(): Promise<{ progression: ProgressionPoint[] }> {
+  return request('/stats/progression');
+}
+export function getHoldTypeStats(): Promise<{ hold_types: HoldTypeStat[] }> {
+  return request('/stats/hold-types');
+}
+export function getAngleStats(): Promise<{ angles: AngleStat[] }> {
+  return request('/stats/angles');
 }
 
 /** Convert annotator holds to the API payload shape (tap order = sequence). */

@@ -36,13 +36,66 @@ class UserResponse(BaseModel):
     created_at: dt.datetime
 
 
-# --- Climbs ----------------------------------------------------------------
+# --- Climbs / logbook ------------------------------------------------------
+
+# A climb is one logbook entry; video analysis is optional extra data on it.
+Angle = Literal["slab", "vertical", "overhang", "roof"]
+Outcome = Literal["flash", "send", "attempt"]
+HoldType = Literal["crimp", "jug", "sloper", "pinch", "pocket"]
+
+
+class ClimbLogInput(BaseModel):
+    """Logbook fields. All optional so this works for both creating a logged
+    climb and patching one (including a video draft logged after the fact)."""
+
+    grade: int | None = Field(default=None, ge=0, le=17)  # V-scale
+    angle: Angle | None = None
+    outcome: Outcome | None = None
+    attempts: int | None = Field(default=None, ge=1)
+    beta_notes: str | None = Field(default=None, max_length=2000)
+    climbed_at: dt.datetime | None = None  # backfill past sessions
+    hold_types: list[HoldType] | None = None
+
 
 class ClimbResponse(BaseModel):
     id: UUID
     status: str
     video_ref: str | None
     created_at: dt.datetime
+    grade: int | None = None
+    angle: str | None = None
+    outcome: str | None = None
+    attempts: int = 1
+    beta_notes: str | None = None
+    climbed_at: dt.datetime | None = None
+    hold_types: list[str] = Field(default_factory=list)
+
+
+# --- Stats (logbook analytics) ---------------------------------------------
+
+class ProgressionPoint(BaseModel):
+    month: str  # YYYY-MM
+    sends: int
+    max_grade: int
+    median_grade: float
+    running_best: int  # best grade sent up to and including this month
+
+
+class HoldTypeStat(BaseModel):
+    hold_type: str
+    total: int
+    sends: int
+    send_rate: float  # percent
+
+
+class AngleStat(BaseModel):
+    angle: str
+    logged: int
+    sends: int
+    send_rate: float  # percent
+    best_grade: int | None
+    grade_per_month: float | None  # trend slope from regr_slope
+    trend: Literal["improving", "plateau", "declining", "insufficient_data"]
 
 
 # --- Holds -----------------------------------------------------------------

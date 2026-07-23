@@ -153,6 +153,34 @@ Users can see their past analyzed climbs and revisit the feedback.
 
 ---
 
+### Feature 5 - Climb Logbook and Progression Analytics
+
+Added 2026-07-21 at the owner's direction (a scope addition beyond the original V1 list).
+A climb is a logbook entry; video analysis is optional extra data on it. The value is not the
+logging, it is what falls out of it: where you are progressing and where you are stuck.
+
+**User stories:**
+- As a user, I can log a climb (grade, wall angle, outcome, hold types, attempts, date, beta
+  notes) without needing a video.
+- As a user, I can see my grade progression over time rather than guessing whether I am improving.
+- As a user, I can see which hold types I fail on most.
+- As a user, I can see which wall angles I am plateauing on.
+
+**Acceptance criteria:**
+- Logging requires no video. A climb logged today and a climb analyzed from video appear in the
+  same list.
+- Past sessions can be backfilled by setting the date climbed.
+- Progression shows, per month, sends, hardest grade, median grade, and the running best grade
+  to date.
+- Send rate is reported per hold type, weakest first, with the sample size visible so a
+  single-attempt hold type is not mistaken for a trend.
+- Per wall angle, the app reports send rate, best grade, and whether grade is trending up, flat
+  (a plateau), or down. Below three sends on an angle it says there is not enough data rather
+  than reporting a spurious trend.
+- All statistics are scoped to the signed-in user.
+
+---
+
 ## Non-Functional Requirements
 
 - Pose estimation runs client-side; a typical single-climb clip analyzes without a server
@@ -191,10 +219,11 @@ analysis core is validated, it gets its own PRD section and schema in a future c
 
 ## Data Model Summary
 
-| Table     | Key columns                                                        |
-|-----------|--------------------------------------------------------------------|
-| users     | id, name, email, password_hash, created_at                        |
-| climbs    | id, user_id, video_ref, status, created_at                        |
+| Table            | Key columns                                                 |
+|------------------|--------------------------------------------------------------------|
+| users            | id, name, email, password_hash, created_at                 |
+| climbs           | id, user_id, video_ref, status, created_at, grade, angle, outcome, attempts, beta_notes, climbed_at |
+| climb_hold_types | climb_id, hold_type                                        |
 | holds     | id, climb_id, sequence_index, frame_x, frame_y                    |
 | analyses  | id, climb_id, overall_summary, created_at                         |
 | moves     | id, analysis_id, move_index, target_hold_id, cog_distance, move_type, confidence, note |
@@ -209,7 +238,9 @@ Full SQL schema in `CLAUDE.md`.
 |----------------|--------------------|------------------------------------------------------------|
 | Login          | /login             | Email + password login                                     |
 | Signup         | /signup            | Create account                                             |
-| Home           | /                  | List of past climbs + upload entry point                   |
+| Home           | /                  | Logbook list + entry points                                |
+| Log a climb    | /log               | Log grade, angle, outcome, hold types, attempts, notes     |
+| Progress       | /progress          | Grade progression, hold-type and wall-angle breakdowns     |
 | Upload         | /upload            | Select video, run in-browser pose extraction               |
 | Annotate Holds | /climb/[id]/holds  | Tap holds in sequence on a still frame                     |
 | Analysis       | /climb/[id]        | Per-move technique breakdown and feedback                  |

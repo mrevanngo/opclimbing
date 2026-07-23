@@ -7,6 +7,8 @@ import ProtectedLayout from './components/ProtectedLayout';
 import Login from './routes/login';
 import Signup from './routes/signup';
 import Home from './routes/home';
+import LogClimb from './routes/log';
+import Progress from './routes/progress';
 import Upload from './routes/upload';
 import Annotate from './routes/annotate';
 import Analysis from './routes/analysis';
@@ -23,6 +25,8 @@ createRoot(root).render(
         <Route path="/signup" element={<Signup />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<Home />} />
+          <Route path="/log" element={<LogClimb />} />
+          <Route path="/progress" element={<Progress />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/climb/:id/holds" element={<Annotate />} />
           <Route path="/climb/:id" element={<Analysis />} />

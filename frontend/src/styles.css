@@ -107,3 +107,25 @@ h2 { font-size: 17px; margin: 0 0 10px; }
 }
 .progress { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
 .progress > div { height: 100%; background: var(--accent); transition: width 0.2s; }
+
+/* Logbook form chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 6px 12px; border-radius: 999px; font-size: 14px; text-transform: capitalize; }
+.chip.on { background: var(--accent-2); border-color: var(--accent-2); color: white; }
+
+.badge.outcome-flash { color: var(--good); border-color: var(--good); }
+.badge.outcome-send { color: var(--accent); border-color: var(--accent); }
+.badge.outcome-attempt { color: var(--muted); }
+
+/* Progress / analytics */
+.chart { width: 100%; height: auto; display: block; }
+.stat-row { padding: 10px 0; border-top: 1px solid var(--border); }
+.stat-row:first-of-type { border-top: none; }
+.stat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.bar { height: 10px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-bottom: 4px; }
+.bar > div { height: 100%; background: var(--accent); }
+.trend { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); }
+.trend.improving { color: var(--good); border-color: var(--good); }
+.trend.plateau { color: var(--warn); border-color: var(--warn); }
+.trend.declining { color: var(--danger); border-color: var(--danger); }
+.trend.insufficient_data { color: var(--muted); }

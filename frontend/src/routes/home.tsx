@@ -39,9 +39,13 @@ export default function Home() {
     <div className="container">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h1>Your climbs</h1>
-        <button className="primary" onClick={() => navigate('/upload')}>
-          Upload a climb
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button onClick={() => navigate('/progress')}>Progress</button>
+          <button onClick={() => navigate('/upload')}>Upload video</button>
+          <button className="primary" onClick={() => navigate('/log')}>
+            Log a climb
+          </button>
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}
@@ -51,7 +55,8 @@ export default function Home() {
       {climbs !== null && climbs.length === 0 && (
         <div className="card" style={{ marginTop: 16 }}>
           <p className="muted" style={{ margin: 0 }}>
-            No climbs yet. Upload a video to get per-move technique feedback.
+            No climbs yet. <Link to="/log">Log a climb</Link> to start tracking your progress, or{' '}
+            <Link to="/upload">upload a video</Link> for per-move technique feedback.
           </p>
         </div>
       )}
@@ -61,10 +66,28 @@ export default function Home() {
           {climbs.map((c) => (
             <div className="card climb-card" key={c.id}>
               <div style={{ flex: 1 }}>
-                <div>
-                  <Link to={`/climb/${c.id}`}>Climb {new Date(c.created_at).toLocaleString()}</Link>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  {c.grade !== null && <strong>V{c.grade}</strong>}
+                  {c.angle && <span className="badge">{c.angle}</span>}
+                  {c.outcome && (
+                    <span className={`badge outcome-${c.outcome}`}>
+                      {c.outcome === 'attempt' ? 'did not send' : c.outcome}
+                    </span>
+                  )}
+                  {c.status === 'analyzed' && <span className="badge analyzed">analyzed</span>}
                 </div>
-                <span className={`badge ${c.status}`}>{c.status}</span>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  {new Date(c.climbed_at ?? c.created_at).toLocaleDateString()}
+                  {c.hold_types.length > 0 && <> - {c.hold_types.join(', ')}</>}
+                </div>
+                {c.beta_notes && (
+                  <div style={{ fontSize: 13, marginTop: 4 }}>{c.beta_notes}</div>
+                )}
+                {c.status === 'analyzed' && (
+                  <Link to={`/climb/${c.id}`} style={{ fontSize: 13 }}>
+                    View move-by-move feedback
+                  </Link>
+                )}
               </div>
               <button className="danger" onClick={() => onDelete(c.id)}>
                 Delete

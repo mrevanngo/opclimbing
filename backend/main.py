@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from core.config import get_settings
 from core.db import close_pool, get_pool
-from routers import analyses, auth, climbs, holds
+from routers import analyses, auth, climbs, holds, stats
 
 logger = logging.getLogger("optimalclimbing")
 
@@ -89,3 +89,4 @@ app.include_router(auth.router)
 app.include_router(climbs.router)
 app.include_router(holds.router)
 app.include_router(analyses.router)
+app.include_router(stats.router)

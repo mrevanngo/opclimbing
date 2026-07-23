@@ -111,7 +111,8 @@ optimalclimbing/
 │   │   ├── auth.py          ← POST /auth/signup, POST /auth/login, POST /auth/logout
 │   │   ├── climbs.py        ← POST /climbs, GET /climbs, GET /climbs/{id}, DELETE /climbs/{id}
 │   │   ├── holds.py         ← PUT /climbs/{id}/holds  (replace the annotated hold set)
-│   │   └── analyses.py      ← POST /climbs/{id}/analyze, GET /climbs/{id}/analysis
+│   │   ├── analyses.py      ← POST /climbs/{id}/analyze, GET /climbs/{id}/analysis
+│   │   └── stats.py         ← GET /stats/progression, /stats/hold-types, /stats/angles
 │   ├── core/
 │   │   ├── db.py            ← connection pool; get_conn dependency
 │   │   ├── security.py      ← bcrypt hash/verify, JWT sign/verify, auth dependency
@@ -140,7 +141,9 @@ optimalclimbing/
 │   │   ├── routes/
 │   │   │   ├── login.tsx
 │   │   │   ├── signup.tsx
-│   │   │   ├── home.tsx            ← past climbs + upload entry
+│   │   │   ├── home.tsx            ← logbook list + entry points
+│   │   │   ├── log.tsx             ← log a climb (grade, angle, outcome, holds, notes)
+│   │   │   ├── progress.tsx        ← progression / hold-type / angle analytics + SVG charts
 │   │   │   ├── upload.tsx          ← select video; run in-browser pose extraction
 │   │   │   ├── annotate.tsx        ← tap holds in sequence on a still frame
 │   │   │   ├── analysis.tsx        ← per-move feedback view
@@ -240,13 +243,32 @@ CREATE TABLE users (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- A climb is one LOGBOOK ENTRY. Video analysis is optional extra data on it:
+-- most logged climbs have no video. The log fields drive the stats endpoints.
 CREATE TABLE climbs (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   video_ref  TEXT,                       -- optional stored reference; video may stay client-side
   status     TEXT        NOT NULL DEFAULT 'draft',  -- draft | annotated | analyzed
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Logbook fields (all nullable: a video-only draft has none of them yet)
+  grade      INT         CHECK (grade BETWEEN 0 AND 17),   -- V-scale
+  angle      TEXT        CHECK (angle IN ('slab','vertical','overhang','roof')),
+  outcome    TEXT        CHECK (outcome IN ('flash','send','attempt')),
+  attempts   INT         NOT NULL DEFAULT 1 CHECK (attempts >= 1),
+  beta_notes TEXT,
+  climbed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()  -- when climbed (backfillable)
 );
+
+-- Hold types present on a climb; many-to-many so send rate can be aggregated
+-- per hold type ("which hold types do I fail on").
+CREATE TABLE climb_hold_types (
+  climb_id  UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+  hold_type TEXT NOT NULL CHECK (hold_type IN ('crimp','jug','sloper','pinch','pocket')),
+  PRIMARY KEY (climb_id, hold_type)
+);
+
+CREATE INDEX climbs_user_climbed_at_idx ON climbs (user_id, climbed_at DESC);
 
 CREATE TABLE holds (
   id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -289,8 +311,11 @@ POST   /auth/signup            { name, email, password }         → 201 { data:
 POST   /auth/login             { email, password }               → 200 { data: { user } }   (sets cookie)
 POST   /auth/logout                                              → 204                       (clears cookie)
 
-POST   /climbs                 { }                               → 201 { data: { climb } }   (creates a draft)
-GET    /climbs                                                   → 200 { data: { climbs } }  (this user, newest first)
+POST   /climbs                 { }                               → 201 { data: { climb } }   (bare draft, video flow)
+POST   /climbs                 { grade?, angle?, outcome?, attempts?, beta_notes?, climbed_at?, hold_types? }
+                                                                 → 201 { data: { climb } }   (logbook entry, no video needed)
+PATCH  /climbs/{id}            { ...same log fields, all optional } → 200 { data: { climb } } (partial update)
+GET    /climbs                                                   → 200 { data: { climbs } }  (this user, newest climbed_at first)
 GET    /climbs/{id}                                              → 200 { data: { climb, holds, analysis? } }
 DELETE /climbs/{id}                                              → 204
 
@@ -299,7 +324,16 @@ PUT    /climbs/{id}/holds      { holds: [{ sequence_index, frame_x, frame_y }] }
 
 POST   /climbs/{id}/analyze    { landmarks, frame_rate }         → 201 { data: { analysis } }
 GET    /climbs/{id}/analysis                                     → 200 { data: { analysis, moves } }
+
+GET    /stats/progression                                        → 200 { data: { progression } } (monthly sends, max/median grade, running best)
+GET    /stats/hold-types                                         → 200 { data: { hold_types } }  (send rate per hold type, weakest first)
+GET    /stats/angles                                             → 200 { data: { angles } }      (send rate + grade trend per wall angle)
 ```
+
+Logbook analytics (`/stats/*`) are computed in SQL and always scoped to the authed
+user: a window function for the running-best grade, `FILTER` aggregates for send
+rates, and `regr_slope` over grade-vs-time to classify each wall angle as
+improving / plateau / declining (or insufficient_data below 3 sends).
 
 Ownership and scoping rules the routers must enforce:
 - Every `/climbs/*` route - the climb must belong to the authed user. Otherwise 404 (do not
@@ -481,6 +515,23 @@ move persists `cog_distance = NULL` and carries its landing quality in the prose
 - [x] Annotate Holds screen (tap in sequence, undo, clear)
 - [x] Analysis screen (per-move breakdown prominent; score secondary)
 - [x] Profile screen (sign out)
+
+**Logbook + progression analytics** (added 2026-07-21 at the owner's direction; see
+`PRD.md` → Feature 5. Scope addition beyond the original V1 list, with a schema change.)
+
+Verified: 17 backend checks against the real DB (logging, PATCH, per-user scoping, and the
+three analytics queries against seeded data with a known-correct answer), plus a browser run
+that logs climbs through the real form and renders the charts. Seeded overhang grades rising
+are reported as "improving" and flat slab grades as "plateau", which is the feature working.
+
+- [x] Schema: logbook fields on `climbs` + `climb_hold_types` join table
+- [x] POST /climbs accepts log fields; PATCH /climbs/{id} partial update
+- [x] GET /stats/progression (window function over a monthly rollup)
+- [x] GET /stats/hold-types (send rate per hold type, weakest first)
+- [x] GET /stats/angles (regr_slope trend → improving | plateau | declining)
+- [x] Log a climb screen (grade, angle, outcome, hold types, attempts, date, beta notes)
+- [x] Progress screen (progression chart + per-angle and per-hold-type breakdowns)
+- [x] Home shows logbook entries (grade, angle, outcome, hold types, notes)
 
 **Phase 3 - Deploy + test**
 - [ ] Backend deployed to Railway
