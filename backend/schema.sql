@@ -4,7 +4,15 @@
 -- affected router in the same change.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "postgis";  -- unused in V1; reserved for the deferred gym map
+
+-- PostGIS is unused in V1 (reserved for the deferred gym map). Create it where
+-- available (the local postgis/postgis dev image), but skip gracefully where it
+-- is not (e.g. Railway's plain managed Postgres) so the schema still applies.
+DO $$ BEGIN
+  CREATE EXTENSION IF NOT EXISTS "postgis";
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'postgis extension unavailable, skipping (unused in V1)';
+END $$;
 
 CREATE TABLE IF NOT EXISTS users (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

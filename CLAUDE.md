@@ -197,6 +197,27 @@ npm install
 npm run dev             # Vite dev server, typically :5173
 ```
 
+### Deployment (all on Railway, one service + Postgres)
+
+The repo builds to a single image (`Dockerfile`): the frontend is built and served
+by the FastAPI backend from the SAME origin, so the session cookie stays
+first-party and there is no CORS. Railway builds the Dockerfile, provisions a
+Postgres plugin, and injects `PORT` + `DATABASE_URL`.
+
+- The backend serves the build when `FRONTEND_DIST` is set (baked into the image).
+- `RUN_MIGRATIONS=1` (baked in) applies `schema.sql` on boot, so a fresh Railway
+  Postgres self-initializes. `schema.sql` is idempotent, and the PostGIS extension
+  is skipped gracefully where unavailable (Railway's managed Postgres has no
+  PostGIS; it is unused in V1 anyway).
+- Frontend build uses `VITE_API_URL=""` -> relative, same-origin API calls.
+
+Railway env vars to set on the service: `JWT_SECRET` (32+ chars), and
+`FEEDBACK_PROVIDER=template` (default; no key). `DATABASE_URL` and `PORT` come
+from Railway. Verified locally by building the image and running it against a
+plain `postgres:16` (no PostGIS) - schema applied, PostGIS skipped, same-origin
+cookie auth and the log/analytics flow all worked.
+```
+
 ---
 
 ## Environment Variables
@@ -534,7 +555,17 @@ are reported as "improving" and flat slab grades as "plateau", which is the feat
 - [x] Home shows logbook entries (grade, angle, outcome, hold types, notes)
 
 **Phase 3 - Deploy + test**
-- [ ] Backend deployed to Railway
-- [ ] frontend/.env updated with deployed URL
-- [ ] Tested end-to-end in a real browser on a real clip
+
+Status note (2026-07-23): the deploy artifact is built and verified, but the live deploy
+needs the owner's Railway account. Single-image "all on Railway" setup: `Dockerfile` builds
+the frontend and serves it from the FastAPI backend at one origin (first-party cookie, no
+CORS); `RUN_MIGRATIONS=1` self-initializes a fresh Railway Postgres from `schema.sql` (PostGIS
+skipped gracefully). Verified by building the image and running it against a plain `postgres:16`
+(mirrors Railway's managed Postgres): schema applied, same-origin cookie auth survived reload,
+and the log/analytics flow worked in a headless browser.
+
+- [ ] Backend + frontend deployed to Railway (config ready; needs the owner to connect the repo)
+- [x] Single-origin serving so no separate frontend URL / cross-site cookie is needed
+      (replaces the old "frontend/.env with deployed URL" item)
+- [ ] Tested end-to-end in a real browser on the LIVE URL
 - [ ] Shown to at least 2 real climbers; feedback matches their sense of the climb

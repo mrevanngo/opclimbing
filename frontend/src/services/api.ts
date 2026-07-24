@@ -4,7 +4,10 @@
 
 import type { FrameLandmarks, Hold } from '../pipeline/types';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+// Empty (the default) means same-origin relative requests - used in production,
+// where the backend serves this app, so the session cookie stays first-party.
+// Local dev sets VITE_API_URL=http://localhost:8080 in frontend/.env.
+const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export interface User {
   id: string;

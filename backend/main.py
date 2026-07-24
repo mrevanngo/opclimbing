@@ -7,17 +7,20 @@ errors are logged and return a generic 500 that never leaks details.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from core.config import get_settings
-from core.db import close_pool, get_pool
+from core.db import apply_schema, close_pool, get_pool
 from routers import analyses, auth, climbs, holds, stats
 
 logger = logging.getLogger("optimalclimbing")
@@ -34,6 +37,11 @@ ALLOWED_ORIGINS = [
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     get_settings()  # fail fast on missing config
     get_pool()  # open the connection pool
+    # Initialize a fresh deployment DB (Railway) on boot. Idempotent; opt-in so
+    # local dev, which applies schema.sql manually, is unaffected.
+    if os.environ.get("RUN_MIGRATIONS", "").lower() in ("1", "true", "yes"):
+        logger.info("RUN_MIGRATIONS set - applying schema")
+        apply_schema()
     yield
     close_pool()
 
@@ -90,3 +98,25 @@ app.include_router(climbs.router)
 app.include_router(holds.router)
 app.include_router(analyses.router)
 app.include_router(stats.router)
+
+
+# --- Serve the built frontend from the same origin (production/Railway) --------
+# When FRONTEND_DIST points at a Vite build, the API and the app share one origin,
+# so the session cookie stays first-party and there is no CORS. Registered AFTER
+# the routers so /auth, /climbs, /stats, /health always win; everything else
+# falls back to index.html for client-side routing. In local dev FRONTEND_DIST is
+# unset and Vite serves the frontend separately.
+_dist = os.environ.get("FRONTEND_DIST")
+if _dist and Path(_dist).is_dir():
+    _dist_path = Path(_dist)
+    _assets = _dist_path / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str) -> FileResponse:
+        # Serve a real static file if it exists (favicon, icons), else the SPA shell.
+        candidate = _dist_path / full_path
+        if full_path and candidate.is_file() and candidate.is_relative_to(_dist_path):
+            return FileResponse(candidate)
+        return FileResponse(_dist_path / "index.html")

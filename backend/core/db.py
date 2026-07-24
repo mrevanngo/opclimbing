@@ -7,6 +7,7 @@ payloads without positional indexing.
 """
 
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -14,6 +15,8 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from core.config import get_settings
+
+_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
 _pool: ConnectionPool | None = None
 
@@ -38,6 +41,18 @@ def close_pool() -> None:
     if _pool is not None:
         _pool.close()
         _pool = None
+
+
+def apply_schema() -> None:
+    """Apply schema.sql idempotently (all statements are IF NOT EXISTS). Used to
+    initialize a fresh deployment database (e.g. Railway) at startup when
+    RUN_MIGRATIONS is set. Safe to run repeatedly; a no-op on an existing schema.
+    """
+    sql = _SCHEMA_PATH.read_text(encoding="utf-8")
+    with get_pool().connection() as conn:
+        # No parameters -> psycopg uses the simple protocol, so the whole
+        # multi-statement script runs in one call.
+        conn.execute(sql)  # type: ignore[arg-type]
 
 
 def get_conn() -> Iterator[psycopg.Connection[dict[str, Any]]]:

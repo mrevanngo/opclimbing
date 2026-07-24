@@ -1,0 +1,12 @@
+# Keep the build context small and never ship secrets or local artifacts.
+.git
+**/.env
+**/node_modules
+frontend/dist
+backend/.venv
+**/__pycache__
+**/*.pyc
+*.mp4
+*.mov
+pipeline/fixtures/*.mp4
+frontend/public/clip-01.*
